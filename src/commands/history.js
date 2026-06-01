@@ -2,24 +2,29 @@ import { InteractionResponseType } from "discord-interactions";
 import supabase from "../lib/supabase.js";
 import { formatNumber } from "../lib/discord.js";
 import { buildChartUrl } from "../lib/chart.js";
+import { getFarmIdOptionValue } from "../lib/farms.js";
 
 export async function handleHistory(interaction) {
+  const farmId = getFarmIdOptionValue(interaction.data.options);
   const [expensesResult, salesResult, payoutsResult] = await Promise.all([
     supabase
       .from("expenses")
       .select("discord_username, item, quantity, total_cost, created_at")
+      .eq("farm_id", farmId)
       .is("payout_id", null)
       .order("created_at", { ascending: false })
       .limit(10),
     supabase
       .from("sales")
       .select("discord_username, quantity, total_revenue, created_at")
+      .eq("farm_id", farmId)
       .is("payout_id", null)
       .order("created_at", { ascending: false })
       .limit(10),
     supabase
       .from("payouts")
       .select("settled_at, total_revenue, total_profit")
+      .eq("farm_id", farmId)
       .order("settled_at", { ascending: false })
       .limit(5),
   ]);
@@ -47,7 +52,7 @@ export async function handleHistory(interaction) {
       data: {
         embeds: [{
           title: "History",
-          description: "Nothing to show. Use `/expense` or `/sale` to get started.",
+          description: `Nothing to show for farm \`${farmId}\`. Use \`/expense\` or \`/sale\` to get started.`,
           color: 0x5865f2,
         }],
       },
@@ -99,6 +104,7 @@ export async function handleHistory(interaction) {
       embeds: [{
         title: "History",
         color: 0x5865f2,
+        description: `Farm ID: \`${farmId}\``,
         fields,
         ...(chartUrl ? { image: { url: chartUrl } } : {}),
       }],

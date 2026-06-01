@@ -1,11 +1,21 @@
 import { InteractionResponseType } from "discord-interactions";
 import supabase from "../lib/supabase.js";
 import { formatNumber } from "../lib/discord.js";
+import { getFarmIdOptionValue } from "../lib/farms.js";
 
 export async function handleBalance(interaction) {
+  const farmId = getFarmIdOptionValue(interaction.data.options);
   const [expensesResult, salesResult] = await Promise.all([
-    supabase.from("expenses").select("discord_user_id, discord_username, total_cost").is("payout_id", null),
-    supabase.from("sales").select("discord_user_id, discord_username, total_revenue").is("payout_id", null),
+    supabase
+      .from("expenses")
+      .select("discord_user_id, discord_username, total_cost")
+      .eq("farm_id", farmId)
+      .is("payout_id", null),
+    supabase
+      .from("sales")
+      .select("discord_user_id, discord_username, total_revenue")
+      .eq("farm_id", farmId)
+      .is("payout_id", null),
   ]);
 
   if (expensesResult.error || salesResult.error) {
@@ -30,7 +40,7 @@ export async function handleBalance(interaction) {
       data: {
         embeds: [{
           title: "Current Cycle",
-          description: "No expenses or sales logged yet. Use `/expense` or `/sale` to get started.",
+          description: `No expenses or sales logged yet for farm \`${farmId}\`. Use \`/expense\` or \`/sale\` to get started.`,
           color: 0x5865f2,
         }],
       },
@@ -58,6 +68,7 @@ export async function handleBalance(interaction) {
           title: "Current Cycle",
           color: 0x57f287,
           fields: [
+            { name: "Farm ID", value: farmId, inline: true },
             { name: "Total Expenses", value: "$0", inline: true },
             { name: "Total Revenue", value: `$${formatNumber(totalRevenue)}`, inline: true },
             { name: "Profit", value: `$${formatNumber(totalRevenue)}`, inline: true },
@@ -115,6 +126,7 @@ export async function handleBalance(interaction) {
         title: "Current Cycle",
         color: profitColor,
         fields: [
+            { name: "Farm ID", value: farmId, inline: true },
           { name: "Total Expenses", value: `$${formatNumber(totalExpenses)}`, inline: true },
           { name: "Total Revenue", value: `$${formatNumber(totalRevenue)}`, inline: true },
           { name: "Profit", value: `$${formatNumber(totalProfit)}`, inline: true },

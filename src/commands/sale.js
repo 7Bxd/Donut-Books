@@ -1,12 +1,14 @@
 import { InteractionResponseType } from "discord-interactions";
 import supabase from "../lib/supabase.js";
 import { formatNumber } from "../lib/discord.js";
+import { getFarmIdOptionValue } from "../lib/farms.js";
 import { resolvePricingOptions } from "../lib/pricing.js";
 
 export async function handleSale(interaction) {
   const user = interaction.member.user;
   const options = interaction.data.options;
 
+  const farmId = getFarmIdOptionValue(options);
   const quantity = options.find((o) => o.name === "quantity").value;
   const pricing = resolvePricingOptions(options, quantity);
 
@@ -26,6 +28,7 @@ export async function handleSale(interaction) {
   const { totalAmount: totalRevenue, pricePerItem } = pricing;
 
   const { error } = await supabase.from("sales").insert({
+    farm_id: farmId,
     discord_user_id: user.id,
     discord_username: user.username,
     quantity,
@@ -52,6 +55,7 @@ export async function handleSale(interaction) {
         title: "Sale Logged",
         color: 0x57f287,
         fields: [
+          { name: "Farm ID", value: farmId, inline: true },
           { name: "Item", value: "Dried Kelp Blocks", inline: true },
           { name: "Quantity", value: formatNumber(quantity), inline: true },
           { name: "Total", value: `$${formatNumber(totalRevenue)}`, inline: true },

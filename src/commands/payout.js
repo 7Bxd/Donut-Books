@@ -1,12 +1,22 @@
 import { InteractionResponseType } from "discord-interactions";
 import supabase from "../lib/supabase.js";
 import { formatNumber } from "../lib/discord.js";
+import { getFarmIdOptionValue } from "../lib/farms.js";
 import { calculateSettlements } from "../lib/settlements.js";
 
 export async function handlePayout(interaction) {
+  const farmId = getFarmIdOptionValue(interaction.data.options);
   const [expensesResult, salesResult] = await Promise.all([
-    supabase.from("expenses").select("discord_user_id, discord_username, total_cost").is("payout_id", null),
-    supabase.from("sales").select("discord_user_id, discord_username, total_revenue").is("payout_id", null),
+    supabase
+      .from("expenses")
+      .select("discord_user_id, discord_username, total_cost")
+      .eq("farm_id", farmId)
+      .is("payout_id", null),
+    supabase
+      .from("sales")
+      .select("discord_user_id, discord_username, total_revenue")
+      .eq("farm_id", farmId)
+      .is("payout_id", null),
   ]);
 
   if (expensesResult.error || salesResult.error) {
@@ -31,7 +41,7 @@ export async function handlePayout(interaction) {
       data: {
         embeds: [{
           title: "Nothing to Settle",
-          description: "No expenses or sales in the current cycle.",
+          description: `No expenses or sales in the current cycle for farm \`${farmId}\`.`,
           color: 0x5865f2,
         }],
       },
@@ -44,6 +54,7 @@ export async function handlePayout(interaction) {
     const { data: payoutRecord, error: payoutError } = await supabase
       .from("payouts")
       .insert({
+        farm_id: farmId,
         total_expenses: 0,
         total_revenue: totalRevenue,
         total_profit: totalRevenue,
@@ -65,7 +76,7 @@ export async function handlePayout(interaction) {
       };
     }
 
-    await supabase.from("sales").update({ payout_id: payoutRecord.id }).is("payout_id", null);
+    await supabase.from("sales").update({ payout_id: payoutRecord.id }).eq("farm_id", farmId).is("payout_id", null);
 
     return {
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -75,6 +86,7 @@ export async function handlePayout(interaction) {
           description: "No expenses this cycle — all revenue is pure profit. Split it however you like!",
           color: 0x57f287,
           fields: [
+            { name: "Farm ID", value: farmId, inline: true },
             { name: "Total Revenue", value: `$${formatNumber(totalRevenue)}`, inline: true },
             { name: "Total Profit", value: `$${formatNumber(totalRevenue)}`, inline: true },
           ],
@@ -132,6 +144,7 @@ export async function handlePayout(interaction) {
   const { data: payoutRecord, error: payoutError } = await supabase
     .from("payouts")
     .insert({
+      farm_id: farmId,
       total_expenses: totalExpenses,
       total_revenue: totalRevenue,
       total_profit: totalProfit,
@@ -154,8 +167,8 @@ export async function handlePayout(interaction) {
   }
 
   await Promise.all([
-    supabase.from("expenses").update({ payout_id: payoutRecord.id }).is("payout_id", null),
-    supabase.from("sales").update({ payout_id: payoutRecord.id }).is("payout_id", null),
+    supabase.from("expenses").update({ payout_id: payoutRecord.id }).eq("farm_id", farmId).is("payout_id", null),
+    supabase.from("sales").update({ payout_id: payoutRecord.id }).eq("farm_id", farmId).is("payout_id", null),
   ]);
 
   const profitColor = totalProfit >= 0 ? 0x57f287 : 0xed4245;
@@ -166,6 +179,7 @@ export async function handlePayout(interaction) {
   });
 
   const fields = [
+    { name: "Farm ID", value: farmId, inline: true },
     { name: "Total Expenses", value: `$${formatNumber(totalExpenses)}`, inline: true },
     { name: "Total Revenue", value: `$${formatNumber(totalRevenue)}`, inline: true },
     { name: "Profit", value: `$${formatNumber(totalProfit)}`, inline: true },

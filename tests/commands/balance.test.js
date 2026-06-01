@@ -4,26 +4,28 @@ import { InteractionResponseType } from "discord-interactions";
 vi.mock("../../src/lib/supabase.js", () => {
   const fromMock = vi.fn((table) => {
     if (table === "expenses") {
+      const isMock = vi.fn().mockResolvedValue({
+        data: [
+          { discord_user_id: "1", discord_username: "David", total_cost: 10000000 },
+          { discord_user_id: "2", discord_username: "Alex", total_cost: 3000000 },
+          { discord_user_id: "1", discord_username: "David", total_cost: 2000000 },
+        ],
+        error: null,
+      });
       return {
         select: vi.fn().mockReturnValue({
-          is: vi.fn().mockResolvedValue({
-            data: [
-              { discord_user_id: "1", discord_username: "David", total_cost: 10000000 },
-              { discord_user_id: "2", discord_username: "Alex", total_cost: 3000000 },
-              { discord_user_id: "1", discord_username: "David", total_cost: 2000000 },
-            ],
-            error: null,
-          }),
+          eq: vi.fn().mockReturnValue({ is: isMock }),
         }),
       };
     }
     if (table === "sales") {
+      const isMock = vi.fn().mockResolvedValue({
+        data: [{ discord_user_id: "1", discord_username: "David", total_revenue: 20000000 }],
+        error: null,
+      });
       return {
         select: vi.fn().mockReturnValue({
-          is: vi.fn().mockResolvedValue({
-            data: [{ discord_user_id: "1", discord_username: "David", total_revenue: 20000000 }],
-            error: null,
-          }),
+          eq: vi.fn().mockReturnValue({ is: isMock }),
         }),
       };
     }
@@ -35,12 +37,13 @@ import { handleBalance } from "../../src/commands/balance.js";
 
 describe("handleBalance", () => {
   it("shows_proportional_breakdown_in_embed", async () => {
-    const interaction = { member: { user: { id: "1" } } };
+    const interaction = { data: { options: [{ name: "farm_id", value: "kelp-1" }] }, member: { user: { id: "1" } } };
     const result = await handleBalance(interaction);
 
     expect(result.type).toBe(InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE);
     const embed = result.data.embeds[0];
     expect(embed.title).toBe("Current Cycle");
+    expect(embed.fields).toContainEqual({ name: "Farm ID", value: "kelp-1", inline: true });
     expect(embed.fields).toContainEqual({ name: "Total Expenses", value: "$15,000,000", inline: true });
     expect(embed.fields).toContainEqual({ name: "Total Revenue", value: "$20,000,000", inline: true });
     expect(embed.fields).toContainEqual({ name: "Profit", value: "$5,000,000", inline: true });

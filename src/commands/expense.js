@@ -1,12 +1,14 @@
 import { InteractionResponseType } from "discord-interactions";
 import supabase from "../lib/supabase.js";
 import { formatNumber } from "../lib/discord.js";
+import { getFarmIdOptionValue } from "../lib/farms.js";
 import { resolvePricingOptions } from "../lib/pricing.js";
 
 export async function handleExpense(interaction) {
   const user = interaction.member.user;
   const options = interaction.data.options;
 
+  const farmId = getFarmIdOptionValue(options);
   const item = options.find((o) => o.name === "item").value;
   const quantity = options.find((o) => o.name === "quantity").value;
   const pricing = resolvePricingOptions(options, quantity);
@@ -27,6 +29,7 @@ export async function handleExpense(interaction) {
   const { totalAmount: totalCost, pricePerItem } = pricing;
 
   const { error } = await supabase.from("expenses").insert({
+    farm_id: farmId,
     discord_user_id: user.id,
     discord_username: user.username,
     item,
@@ -54,6 +57,7 @@ export async function handleExpense(interaction) {
         title: "Expense Logged",
         color: 0xed4245,
         fields: [
+          { name: "Farm ID", value: farmId, inline: true },
           { name: "Item", value: item, inline: true },
           { name: "Quantity", value: formatNumber(quantity), inline: true },
           { name: "Total", value: `$${formatNumber(totalCost)}`, inline: true },

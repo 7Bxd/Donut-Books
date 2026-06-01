@@ -1,6 +1,8 @@
 import supabase from "./supabase.js";
 
 export const FARM_ID_OPTION_NAME = "farm_id";
+export const ACTIVE_FARM_DURATION_SECONDS = 60 * 60;
+export const ACTIVE_FARM_DURATION_MS = ACTIVE_FARM_DURATION_SECONDS * 1000;
 const FARM_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 export async function listFarmIds() {
@@ -56,4 +58,102 @@ export function validateFarmId(farmId) {
 
 export function getFarmIdOptionValue(options = []) {
   return normalizeFarmId(options.find((option) => option.name === FARM_ID_OPTION_NAME)?.value);
+}
+
+function getInteractionUserId(interaction) {
+  return interaction.member?.user?.id ?? interaction.user?.id ?? null;
+}
+
+function getInteractionScopeId(interaction) {
+  if (interaction.guild_id) {
+    return `guild:${interaction.guild_id}`;
+  }
+
+  if (interaction.channel_id) {
+    return `dm:${interaction.channel_id}`;
+  }
+
+  return "dm:unknown";
+}
+
+export async function setActiveFarmSelection(interaction, farmId) {
+  const discordUserId = getInteractionUserId(interaction);
+  if (!discordUserId) {
+    throw new Error("Could not determine the Discord user for active farm selection.");
+  }
+
+  const scopeId = getInteractionScopeId(interaction);
+  const expiresAt = new Date(Date.now() + ACTIVE_FARM_DURATION_MS).toISOString();
+
+  const { error } = await supabase.from("active_farm_selections").upsert(
+    {
+      discord_user_id: discordUserId,
+      scope_id: scopeId,
+      farm_id: farmId,
+      expires_at: expiresAt,
+    },
+    {
+      onConflict: "discord_user_id,scope_id",
+    },
+  );
+
+  if (error) {
+    throw new Error(`Failed to save active farm: ${error.message}`);
+  }
+
+  return { expiresAt };
+}
+
+export async function getActiveFarmSelection(interaction) {
+  const discordUserId = getInteractionUserId(interaction);
+  if (!discordUserId) {
+    return null;
+  }
+
+  const scopeId = getInteractionScopeId(interaction);
+
+  const { data, error } = await supabase
+    .from("active_farm_selections")
+    .select("farm_id, expires_at")
+    .eq("discord_user_id", discordUserId)
+    .eq("scope_id", scopeId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load active farm: ${error.message}`);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const expiresAtMs = new Date(data.expires_at).getTime();
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+    await supabase
+      .from("active_farm_selections")
+      .delete()
+      .eq("discord_user_id", discordUserId)
+      .eq("scope_id", scopeId);
+
+    return null;
+  }
+
+  return data.farm_id;
+}
+
+export async function resolveFarmIdForCommand(interaction) {
+  const options = interaction.data?.options || [];
+  const explicitFarmId = getFarmIdOptionValue(options);
+  if (explicitFarmId) {
+    return { farmId: explicitFarmId };
+  }
+
+  const activeFarmId = await getActiveFarmSelection(interaction);
+  if (activeFarmId) {
+    return { farmId: activeFarmId };
+  }
+
+  return {
+    error: "No farm selected. Provide `farm_id` on this command or run `/farm` first (lasts 1 hour).",
+  };
 }

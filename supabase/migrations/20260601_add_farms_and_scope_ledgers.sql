@@ -74,4 +74,16 @@ CREATE INDEX IF NOT EXISTS idx_sales_unsettled
 CREATE INDEX IF NOT EXISTS idx_payouts_farm_id
   ON payouts(farm_id);
 
+CREATE TABLE IF NOT EXISTS active_farm_selections (
+  discord_user_id TEXT NOT NULL,
+  scope_id TEXT NOT NULL,
+  farm_id TEXT NOT NULL REFERENCES farms(farm_id),
+  expires_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (discord_user_id, scope_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_active_farm_selections_expires_at
+  ON active_farm_selections(expires_at);
+
 COMMIT;

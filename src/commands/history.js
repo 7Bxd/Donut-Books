@@ -2,10 +2,24 @@ import { InteractionResponseType } from "discord-interactions";
 import supabase from "../lib/supabase.js";
 import { formatNumber } from "../lib/discord.js";
 import { buildChartUrl } from "../lib/chart.js";
-import { getFarmIdOptionValue } from "../lib/farms.js";
+import { resolveFarmIdForCommand } from "../lib/farms.js";
 
 export async function handleHistory(interaction) {
-  const farmId = getFarmIdOptionValue(interaction.data.options);
+  const farmResolution = await resolveFarmIdForCommand(interaction);
+  if (farmResolution.error) {
+    return {
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        embeds: [{
+          title: "Missing farm",
+          description: farmResolution.error,
+          color: 0xff0000,
+        }],
+      },
+    };
+  }
+
+  const { farmId } = farmResolution;
   const [expensesResult, salesResult, payoutsResult] = await Promise.all([
     supabase
       .from("expenses")

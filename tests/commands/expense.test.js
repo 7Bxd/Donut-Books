@@ -6,9 +6,29 @@ const { mockInsert } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/lib/supabase.js", () => {
+  const maybeSingle = vi.fn().mockResolvedValue({ data: { farm_id: "kelp-2", expires_at: "2099-01-01T00:00:00Z" }, error: null });
+
+  const fromMock = vi.fn((table) => {
+    if (table === "active_farm_selections") {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle }),
+          }),
+        }),
+      };
+    }
+
+    if (table === "expenses") {
+      return { insert: mockInsert };
+    }
+
+    return {};
+  });
+
   return {
     default: {
-      from: vi.fn().mockReturnValue({ insert: mockInsert }),
+      from: fromMock,
     },
   };
 });
@@ -91,5 +111,26 @@ describe("handleExpense", () => {
 
     const result = await handleExpense(interaction);
     expect(result.data.embeds[0].description).toContain("must be valid");
+  });
+
+  it("uses_active_farm_when_farm_id_is_omitted", async () => {
+    const interaction = {
+      member: {
+        user: { id: "123456", username: "TestUser" },
+      },
+      data: {
+        options: [
+          { name: "item", value: "Blaze Rods" },
+          { name: "quantity", value: 10 },
+          { name: "total", value: "1k" },
+        ],
+      },
+    };
+
+    const result = await handleExpense(interaction);
+
+    expect(result.data.embeds[0].title).toBe("Expense Logged");
+    expect(result.data.embeds[0].fields).toContainEqual({ name: "Farm ID", value: "kelp-2", inline: true });
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ farm_id: "kelp-2" }));
   });
 });

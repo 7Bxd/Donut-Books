@@ -1,14 +1,28 @@
 import { InteractionResponseType } from "discord-interactions";
 import supabase from "../lib/supabase.js";
 import { formatNumber } from "../lib/discord.js";
-import { getFarmIdOptionValue } from "../lib/farms.js";
+import { resolveFarmIdForCommand } from "../lib/farms.js";
 import { resolvePricingOptions } from "../lib/pricing.js";
 
 export async function handleExpense(interaction) {
   const user = interaction.member.user;
   const options = interaction.data.options;
 
-  const farmId = getFarmIdOptionValue(options);
+  const farmResolution = await resolveFarmIdForCommand(interaction);
+  if (farmResolution.error) {
+    return {
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        embeds: [{
+          title: "Missing farm",
+          description: farmResolution.error,
+          color: 0xff0000,
+        }],
+      },
+    };
+  }
+
+  const { farmId } = farmResolution;
   const item = options.find((o) => o.name === "item").value;
   const quantity = options.find((o) => o.name === "quantity").value;
   const pricing = resolvePricingOptions(options, quantity);

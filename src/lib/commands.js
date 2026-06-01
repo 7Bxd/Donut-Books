@@ -6,7 +6,7 @@ export function buildApplicationCommands(farmIds = []) {
       name: "expense",
       description: "Log a supply purchase for the kelp farm",
       options: [
-        buildFarmIdOption({ farmIds }),
+        buildFarmIdOption({ farmIds, required: false }),
         {
           name: "item",
           description: "What you bought",
@@ -45,7 +45,7 @@ export function buildApplicationCommands(farmIds = []) {
       name: "sale",
       description: "Log a Dried Kelp Block sale",
       options: [
-        buildFarmIdOption({ farmIds }),
+        buildFarmIdOption({ farmIds, required: false }),
         {
           name: "quantity",
           description: "How many Dried Kelp Blocks sold",
@@ -69,12 +69,12 @@ export function buildApplicationCommands(farmIds = []) {
     {
       name: "balance",
       description: "View current cycle expenses, revenue, and profit breakdown",
-      options: [buildFarmIdOption({ farmIds })],
+      options: [buildFarmIdOption({ farmIds, required: false })],
     },
     {
       name: "payout",
       description: "Settle the current cycle and calculate who gets what",
-      options: [buildFarmIdOption({ farmIds })],
+      options: [buildFarmIdOption({ farmIds, required: false })],
     },
     {
       name: "calculate",
@@ -97,6 +97,11 @@ export function buildApplicationCommands(farmIds = []) {
     {
       name: "history",
       description: "View transaction history and profit trends",
+      options: [buildFarmIdOption({ farmIds, required: false })],
+    },
+    {
+      name: "farm",
+      description: "Set your active farm for the next hour",
       options: [buildFarmIdOption({ farmIds })],
     },
     {

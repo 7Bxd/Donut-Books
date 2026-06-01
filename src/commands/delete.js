@@ -41,16 +41,13 @@ export async function handleDelete(interaction) {
     return buildEmbed("Failed to delete farm", error.message, 0xff0000);
   }
 
-  let description = `Farm ID \`${farmId}\` was removed from the farm dropdown.`;
-
-  try {
-    await registerApplicationCommands({
+  void registerApplicationCommands({
       farmIds: existingFarmIds.filter((existingFarmId) => existingFarmId !== farmId),
+    }).catch((refreshError) => {
+      console.error("Failed to refresh commands after farm deletion:", refreshError);
     });
-  } catch (error) {
-    console.error("Failed to refresh commands after farm deletion:", error);
-    description += " Command refresh failed, so the dropdown may be stale until `/register` runs again.";
-  }
+
+  const description = `Farm ID \`${farmId}\` was removed. Dropdown refresh is running in the background and may take up to a minute.`;
 
   return buildEmbed("Farm Deleted", description, 0x57f287);
 }

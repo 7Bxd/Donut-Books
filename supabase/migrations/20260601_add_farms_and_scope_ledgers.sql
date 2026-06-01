@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS farms (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE farms ENABLE ROW LEVEL SECURITY;
+
 -- Ensure a default farm exists before backfilling legacy rows.
 INSERT INTO farms (farm_id)
 VALUES ('main')
@@ -82,6 +84,8 @@ CREATE TABLE IF NOT EXISTS active_farm_selections (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (discord_user_id, scope_id)
 );
+
+ALTER TABLE active_farm_selections ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX IF NOT EXISTS idx_active_farm_selections_expires_at
   ON active_farm_selections(expires_at);

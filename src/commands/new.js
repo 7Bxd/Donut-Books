@@ -53,16 +53,13 @@ export async function handleNew(interaction) {
     return buildEmbed("Failed to create farm", error.message, 0xff0000);
   }
 
-  let description = `Farm ID \`${farmId}\` is now available in the farm dropdown.`;
-
-  try {
-    await registerApplicationCommands({
+  void registerApplicationCommands({
       farmIds: [...existingFarmIds, farmId].sort((left, right) => left.localeCompare(right)),
+    }).catch((refreshError) => {
+      console.error("Failed to refresh commands after farm creation:", refreshError);
     });
-  } catch (error) {
-    console.error("Failed to refresh commands after farm creation:", error);
-    description += " Command refresh failed, so the dropdown may be stale until `/register` runs again.";
-  }
+
+  const description = `Farm ID \`${farmId}\` is now available. Dropdown refresh is running in the background and may take up to a minute.`;
 
   return buildEmbed("Farm Created", description, 0x57f287);
 }

@@ -1,8 +1,39 @@
 import { describe, it, expect, vi } from "vitest";
 import { InteractionResponseType } from "discord-interactions";
 
+const { mockState } = vi.hoisted(() => ({
+  mockState: {
+    activeFarm: { farm_id: "kelp-1", expires_at: "2099-01-01T00:00:00Z" },
+  },
+}));
+
 vi.mock("../../src/lib/supabase.js", () => {
   const fromMock = vi.fn((table) => {
+    if (table === "active_farm_selections") {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: mockState.activeFarm, error: null }),
+            }),
+          }),
+        }),
+      };
+    }
+
+    if (table === "farms") {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockImplementation((_, farmId) => ({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: farmId === "kelp-1" ? { farm_id: farmId } : null,
+              error: null,
+            }),
+          })),
+        }),
+      };
+    }
+
     if (table === "expenses") {
       const limitMock = vi.fn().mockResolvedValue({
         data: [
@@ -74,6 +105,28 @@ vi.mock("../../src/lib/supabase.js", () => {
 import { handleHistory } from "../../src/commands/history.js";
 
 describe("handleHistory", () => {
+  it("uses_active_farm_when_farm_id_is_omitted", async () => {
+    const result = await handleHistory({
+      member: { user: { id: "1" } },
+      data: { options: [] },
+    });
+
+    expect(result.type).toBe(InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE);
+    expect(result.data.embeds[0].description).toContain("kelp-1");
+  });
+
+  it("returns_missing_farm_when_no_explicit_or_active_farm", async () => {
+    mockState.activeFarm = null;
+
+    const result = await handleHistory({
+      member: { user: { id: "1" } },
+      data: { options: [] },
+    });
+    expect(result.data.embeds[0].title).toBe("Missing farm");
+
+    mockState.activeFarm = { farm_id: "kelp-1", expires_at: "2099-01-01T00:00:00Z" };
+  });
+
   it("shows_current_transactions_and_past_cycles", async () => {
     const result = await handleHistory({ data: { options: [{ name: "farm_id", value: "kelp-1" }] } });
 

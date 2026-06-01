@@ -7,6 +7,10 @@ const { mockInsert } = vi.hoisted(() => ({
 
 vi.mock("../../src/lib/supabase.js", () => {
   const maybeSingle = vi.fn().mockResolvedValue({ data: { farm_id: "kelp-2", expires_at: "2099-01-01T00:00:00Z" }, error: null });
+  const maybeSingleFarmByEq = vi.fn().mockImplementation((farmId) => ({
+    data: ["kelp-1", "kelp-2"].includes(farmId) ? { farm_id: farmId } : null,
+    error: null,
+  }));
 
   const fromMock = vi.fn((table) => {
     if (table === "active_farm_selections") {
@@ -21,6 +25,16 @@ vi.mock("../../src/lib/supabase.js", () => {
 
     if (table === "expenses") {
       return { insert: mockInsert };
+    }
+
+    if (table === "farms") {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockImplementation((_, farmId) => ({
+            maybeSingle: vi.fn().mockResolvedValue(maybeSingleFarmByEq(farmId)),
+          })),
+        }),
+      };
     }
 
     return {};

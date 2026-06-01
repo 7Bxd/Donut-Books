@@ -5,10 +5,53 @@ const { mockInsert } = vi.hoisted(() => ({
   mockInsert: vi.fn().mockResolvedValue({ error: null }),
 }));
 
+const { mockState } = vi.hoisted(() => ({
+  mockState: {
+    activeFarm: { farm_id: "kelp-2", expires_at: "2099-01-01T00:00:00Z" },
+    existingFarms: ["kelp-1", "kelp-2"],
+  },
+}));
+
 vi.mock("../../src/lib/supabase.js", () => {
+  const maybeSingleActiveFarm = vi.fn().mockImplementation(() => ({
+    data: mockState.activeFarm,
+    error: null,
+  }));
+
+  const maybeSingleFarmByEq = vi.fn().mockImplementation((farmId) => ({
+    data: mockState.existingFarms.includes(farmId) ? { farm_id: farmId } : null,
+    error: null,
+  }));
+
   return {
     default: {
-      from: vi.fn().mockReturnValue({ insert: mockInsert }),
+      from: vi.fn((table) => {
+        if (table === "active_farm_selections") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({ maybeSingle: maybeSingleActiveFarm }),
+              }),
+            }),
+          };
+        }
+
+        if (table === "farms") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockImplementation((_, farmId) => ({
+                maybeSingle: vi.fn().mockResolvedValue(maybeSingleFarmByEq(farmId)),
+              })),
+            }),
+          };
+        }
+
+        if (table === "sales") {
+          return { insert: mockInsert };
+        }
+
+        return {};
+      }),
     },
   };
 });
@@ -31,6 +74,50 @@ function makeInteraction(farmId, quantity, pricingOptions) {
 }
 
 describe("handleSale", () => {
+  it("uses_active_farm_when_farm_id_is_omitted", async () => {
+    mockState.activeFarm = { farm_id: "kelp-2", expires_at: "2099-01-01T00:00:00Z" };
+    mockState.existingFarms = ["kelp-1", "kelp-2"];
+
+    const interaction = {
+      member: {
+        user: { id: "123456", username: "TestUser" },
+      },
+      data: {
+        options: [
+          { name: "quantity", value: 20 },
+          { name: "total", value: "2k" },
+        ],
+      },
+    };
+
+    const result = await handleSale(interaction);
+
+    expect(result.data.embeds[0].title).toBe("Sale Logged");
+    expect(result.data.embeds[0].fields).toContainEqual({ name: "Farm ID", value: "kelp-2", inline: true });
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ farm_id: "kelp-2" }));
+  });
+
+  it("returns_missing_farm_when_no_explicit_or_active_farm", async () => {
+    mockState.activeFarm = null;
+
+    const interaction = {
+      member: {
+        user: { id: "123456", username: "TestUser" },
+      },
+      data: {
+        options: [
+          { name: "quantity", value: 20 },
+          { name: "total", value: "2k" },
+        ],
+      },
+    };
+
+    const result = await handleSale(interaction);
+    expect(result.data.embeds[0].title).toBe("Missing farm");
+
+    mockState.activeFarm = { farm_id: "kelp-2", expires_at: "2099-01-01T00:00:00Z" };
+  });
+
   it("logs_a_sale_from_total_and_returns_embed", async () => {
     const interaction = makeInteraction("kelp-1", 5000, [
       { name: "total", value: "3.75m" },

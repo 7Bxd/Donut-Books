@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { InteractionResponseType } from "discord-interactions";
 
+const { mockState } = vi.hoisted(() => ({
+  mockState: {
+    activeFarm: { farm_id: "kelp-1", expires_at: "2099-01-01T00:00:00Z" },
+  },
+}));
+
 const mockExpenseUpdate = vi.fn().mockReturnValue({
   eq: vi.fn().mockReturnValue({
     is: vi.fn().mockResolvedValue({ error: null }),
@@ -24,6 +30,31 @@ const mockPayoutInsert = vi.fn().mockReturnValue({
 
 vi.mock("../../src/lib/supabase.js", () => {
   const fromMock = vi.fn((table) => {
+    if (table === "active_farm_selections") {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: mockState.activeFarm, error: null }),
+            }),
+          }),
+        }),
+      };
+    }
+
+    if (table === "farms") {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockImplementation((_, farmId) => ({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: farmId === "kelp-1" ? { farm_id: farmId } : null,
+              error: null,
+            }),
+          })),
+        }),
+      };
+    }
+
     if (table === "expenses") {
       const isMock = vi.fn().mockResolvedValue({
         data: [
@@ -63,6 +94,30 @@ vi.mock("../../src/lib/supabase.js", () => {
 import { handlePayout } from "../../src/commands/payout.js";
 
 describe("handlePayout", () => {
+  it("uses_active_farm_when_farm_id_is_omitted", async () => {
+    const interaction = {
+      data: { options: [] },
+      member: { user: { id: "1" } },
+    };
+
+    const result = await handlePayout(interaction);
+    expect(result.data.embeds[0].fields).toContainEqual({ name: "Farm ID", value: "kelp-1", inline: true });
+  });
+
+  it("returns_missing_farm_when_no_explicit_or_active_farm", async () => {
+    mockState.activeFarm = null;
+
+    const interaction = {
+      data: { options: [] },
+      member: { user: { id: "1" } },
+    };
+
+    const result = await handlePayout(interaction);
+    expect(result.data.embeds[0].title).toBe("Missing farm");
+
+    mockState.activeFarm = { farm_id: "kelp-1", expires_at: "2099-01-01T00:00:00Z" };
+  });
+
   it("settles_cycle_and_shows_embed_breakdown", async () => {
     const interaction = {
       data: { options: [{ name: "farm_id", value: "kelp-1" }] },

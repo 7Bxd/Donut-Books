@@ -47,7 +47,7 @@ Each ledger is now scoped by `farm_id`, so expenses, sales, balances, payout run
 1. Create a project at [supabase.com](https://supabase.com)
 2. For a new database, run `supabase/schema.sql` in the SQL Editor
 3. For an existing database with live data, run `supabase/migrations/20260601_add_farms_and_scope_ledgers.sql`
-4. Copy your project URL and anon key from **Settings > API**
+4. Copy your project URL and service role key from **Settings > API**
 
 Create at least one farm with `/new farm farm_id:<id>` and then set your active farm with `/farm farm_id:<id>` before logging expenses or sales.
 
@@ -64,7 +64,7 @@ DISCORD_APPLICATION_ID=
 DISCORD_PUBLIC_KEY=
 DISCORD_BOT_TOKEN=
 SUPABASE_URL=
-SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 ### 4. Install & Register Commands
